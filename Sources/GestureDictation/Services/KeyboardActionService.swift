@@ -7,6 +7,8 @@ final class KeyboardActionService {
     private let rightOptionKey: CGKeyCode = 0x3D
     private let returnKey: CGKeyCode = 0x24
     private let aKey: CGKeyCode = 0x00
+    private let cKey: CGKeyCode = 0x08
+    private let vKey: CGKeyCode = 0x09
     private let deleteKey: CGKeyCode = 0x33
     private var lastAccessibilityPrompt = Date.distantPast
 
@@ -47,6 +49,12 @@ final class KeyboardActionService {
         case .clearInput:
             DiagnosticsLogger.shared.append("keySequence commandADelete action=clearInput")
             clearFocusedInput()
+        case .copyClipboard:
+            DiagnosticsLogger.shared.append("keySequence commandC action=copyClipboard")
+            tapKey(cKey, flags: .maskCommand)
+        case .pasteClipboard:
+            DiagnosticsLogger.shared.append("keySequence commandV action=pasteClipboard")
+            tapKey(vKey, flags: .maskCommand)
         case .none:
             break
         }

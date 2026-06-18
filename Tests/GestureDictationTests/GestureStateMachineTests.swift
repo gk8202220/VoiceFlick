@@ -2,14 +2,14 @@ import XCTest
 @testable import VoiceFlick
 
 final class GestureStateMachineTests: XCTestCase {
-    func testFistDownFistCyclesTriggerRepeatedStartAndStopActions() {
+    func testPointingDownPointingCyclesTriggerRepeatedStartAndStopActions() {
         var machine = GestureStateMachine()
         let start = Date(timeIntervalSince1970: 1_000)
         var actions: [ActionMapping] = []
 
         for cycle in 0..<20 {
             let base = start.addingTimeInterval(Double(cycle) * 5.0)
-            actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: base, count: 5))
+            actions.append(contentsOf: feed(&machine, gesture: .pointing, handPresent: true, from: base, count: 5))
             actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: false, from: base.addingTimeInterval(1.2), count: 18))
         }
 
@@ -30,13 +30,13 @@ final class GestureStateMachineTests: XCTestCase {
         var machine = GestureStateMachine()
         let start = Date(timeIntervalSince1970: 2_000)
 
-        var actions = feed(&machine, gesture: .closedFist, handPresent: true, from: start, count: 5)
+        var actions = feed(&machine, gesture: .pointing, handPresent: true, from: start, count: 5)
         actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: false, from: start.addingTimeInterval(0.45), count: 12))
 
         XCTAssertEqual(actions, [.startDictation])
 
         actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: false, from: start.addingTimeInterval(2.4), count: 10))
-        actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: start.addingTimeInterval(4.4), count: 8))
+        actions.append(contentsOf: feed(&machine, gesture: .pointing, handPresent: true, from: start.addingTimeInterval(4.4), count: 8))
 
         XCTAssertEqual(actions, [.startDictation, .stopDictation, .startDictation])
     }
@@ -52,13 +52,54 @@ final class GestureStateMachineTests: XCTestCase {
         XCTAssertTrue(actions.isEmpty)
     }
 
+    func testOpenPalmToFistCopiesThenReleasePastes() {
+        var machine = GestureStateMachine()
+        let start = Date(timeIntervalSince1970: 2_120)
+
+        var actions = feed(&machine, gesture: .wave, handPresent: true, from: start, count: 3)
+        actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: start.addingTimeInterval(0.50), count: 3))
+        actions.append(contentsOf: feed(&machine, gesture: .wave, handPresent: true, from: start.addingTimeInterval(1.05), count: 3))
+
+        XCTAssertEqual(actions, [.copyClipboard, .pasteClipboard])
+    }
+
+    func testFistWithoutRecentOpenPalmDoesNotCopy() {
+        var machine = GestureStateMachine()
+        let start = Date(timeIntervalSince1970: 2_130)
+
+        let actions = feed(&machine, gesture: .closedFist, handPresent: true, from: start, count: 5)
+
+        XCTAssertTrue(actions.isEmpty)
+    }
+
+    func testSlowOpenPalmToFistDoesNotCopy() {
+        var machine = GestureStateMachine()
+        let start = Date(timeIntervalSince1970: 2_140)
+
+        var actions = feed(&machine, gesture: .wave, handPresent: true, from: start, count: 3)
+        actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: start.addingTimeInterval(1.80), count: 3))
+
+        XCTAssertTrue(actions.isEmpty)
+    }
+
+    func testReleaseAfterLongGripDoesNotPaste() {
+        var machine = GestureStateMachine()
+        let start = Date(timeIntervalSince1970: 2_150)
+
+        var actions = feed(&machine, gesture: .wave, handPresent: true, from: start, count: 3)
+        actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: start.addingTimeInterval(0.50), count: 3))
+        actions.append(contentsOf: feed(&machine, gesture: .wave, handPresent: true, from: start.addingTimeInterval(3.20), count: 3))
+
+        XCTAssertEqual(actions, [.copyClipboard])
+    }
+
     func testDisabledHandDownDoesNotStopDictation() {
         var machine = GestureStateMachine()
         let start = Date(timeIntervalSince1970: 2_200)
         var settings = BuiltInGestureSettings()
         settings.enabledIDs.remove(BuiltInGestureKind.handDown.id)
 
-        var actions = feed(&machine, gesture: .closedFist, handPresent: true, from: start, count: 5, settings: settings)
+        var actions = feed(&machine, gesture: .pointing, handPresent: true, from: start, count: 5, settings: settings)
         actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: false, from: start.addingTimeInterval(1.2), count: 7, settings: settings))
 
         XCTAssertEqual(actions, [.startDictation])
@@ -140,6 +181,7 @@ final class GestureStateMachineTests: XCTestCase {
             count: 5,
             mouthOpenAction: .startDictation,
             mouthOpenConfidenceThreshold: 0.80,
+            mouthOpenStableDuration: 0.30,
             confidence: 0.79
         )
 
@@ -158,8 +200,42 @@ final class GestureStateMachineTests: XCTestCase {
             count: 5,
             mouthOpenAction: .startDictation,
             mouthOpenConfidenceThreshold: 0.70,
+            mouthOpenStableDuration: 0.30,
             confidence: 0.72
         )
+
+        XCTAssertEqual(actions, [.startDictation])
+    }
+
+    func testMouthOpenRespectsConfiguredStableDuration() {
+        var machine = GestureStateMachine()
+        let start = Date(timeIntervalSince1970: 2_9916)
+
+        var actions = feed(
+            &machine,
+            gesture: .mouthOpen,
+            handPresent: true,
+            from: start,
+            count: 3,
+            interval: 0.10,
+            mouthOpenAction: .startDictation,
+            mouthOpenConfidenceThreshold: 0.80,
+            mouthOpenStableDuration: 0.25
+        )
+
+        XCTAssertTrue(actions.isEmpty)
+
+        actions.append(contentsOf: feed(
+            &machine,
+            gesture: .mouthOpen,
+            handPresent: true,
+            from: start.addingTimeInterval(0.30),
+            count: 1,
+            interval: 0.10,
+            mouthOpenAction: .startDictation,
+            mouthOpenConfidenceThreshold: 0.80,
+            mouthOpenStableDuration: 0.25
+        ))
 
         XCTAssertEqual(actions, [.startDictation])
     }
@@ -418,7 +494,7 @@ final class GestureStateMachineTests: XCTestCase {
         for _ in 0..<50 {
             actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: true, from: cursor, count: 2))
             cursor = cursor.addingTimeInterval(0.28)
-            actions.append(contentsOf: feed(&machine, gesture: .closedFist, handPresent: true, from: cursor, count: 6))
+            actions.append(contentsOf: feed(&machine, gesture: .pointing, handPresent: true, from: cursor, count: 6))
             cursor = cursor.addingTimeInterval(0.84)
             actions.append(contentsOf: feed(&machine, gesture: .none, handPresent: false, from: cursor, count: 22))
             cursor = cursor.addingTimeInterval(3.40)
@@ -440,6 +516,7 @@ final class GestureStateMachineTests: XCTestCase {
         settings: BuiltInGestureSettings = BuiltInGestureSettings(),
         mouthOpenAction: ActionMapping = .none,
         mouthOpenConfidenceThreshold: Double = 0.80,
+        mouthOpenStableDuration: TimeInterval = 0.30,
         closeMouthAutoStopEnabled: Bool = false,
         closeMouthAutoStopDelay: TimeInterval = 3.0,
         audioSilenceStopEnabled: Bool = false,
@@ -462,6 +539,7 @@ final class GestureStateMachineTests: XCTestCase {
                 builtInGestureSettings: settings,
                 mouthOpenAction: mouthOpenAction,
                 mouthOpenConfidenceThreshold: mouthOpenConfidenceThreshold,
+                mouthOpenStableDuration: mouthOpenStableDuration,
                 closeMouthAutoStopEnabled: closeMouthAutoStopEnabled,
                 closeMouthAutoStopDelay: closeMouthAutoStopDelay,
                 audioSilenceStopEnabled: audioSilenceStopEnabled,

@@ -16,6 +16,13 @@ struct GestureStateMachine {
     private var cooldownUntil = Date.distantPast
     private var waveSamples: [(timestamp: Date, x: Double)] = []
     private var lowAudioSince: Date?
+    private var lastOpenPalmAt: Date?
+    private var copiedFistStartedAt: Date?
+    private let openPalmPrimeDuration: TimeInterval = 0.18
+    private let gripStableDuration: TimeInterval = 0.25
+    private let gripTransitionWindow: TimeInterval = 1.20
+    private let releaseStableDuration: TimeInterval = 0.20
+    private let maximumGripHoldDuration: TimeInterval = 2.00
 
     mutating func nextAction(
         for event: GestureEvent,
@@ -23,6 +30,7 @@ struct GestureStateMachine {
         builtInGestureSettings: BuiltInGestureSettings = BuiltInGestureSettings(),
         mouthOpenAction: ActionMapping = .none,
         mouthOpenConfidenceThreshold: Double = 0.80,
+        mouthOpenStableDuration: TimeInterval = 0.30,
         closeMouthAutoStopEnabled: Bool = false,
         closeMouthAutoStopDelay: TimeInterval = 3.0,
         audioSilenceStopEnabled: Bool = false,
@@ -41,9 +49,20 @@ struct GestureStateMachine {
         guard now >= cooldownUntil else { return nil }
 
         let stableDuration = now.timeIntervalSince(stableSince)
+        if let gripDecision = gripCopyPasteAction(
+            for: event,
+            builtInGestureSettings: builtInGestureSettings,
+            stableDuration: stableDuration,
+            stableSince: stableSince
+        ) {
+            return gripDecision
+        }
 
         switch event.gesture {
-        case .closedFist, .pointing:
+        case .closedFist:
+            return nil
+
+        case .pointing:
             guard builtInGestureSettings.isEnabled(event.gesture) else { return nil }
             guard !dictationActive, stableDuration >= 0.30 else { return nil }
             dictationActive = true
@@ -74,7 +93,7 @@ struct GestureStateMachine {
                 )
                 return nil
             }
-            guard mouthOpenAction != .none, stableDuration >= 0.30 else { return nil }
+            guard mouthOpenAction != .none, stableDuration >= mouthOpenStableDuration else { return nil }
             if mouthOpenAction == .startDictation, dictationActive {
                 return nil
             }
@@ -152,6 +171,62 @@ struct GestureStateMachine {
         }
     }
 
+    private mutating func gripCopyPasteAction(
+        for event: GestureEvent,
+        builtInGestureSettings: BuiltInGestureSettings,
+        stableDuration: TimeInterval,
+        stableSince: Date
+    ) -> (action: ActionMapping, reason: String, stableDuration: TimeInterval)? {
+        let now = event.timestamp
+
+        if event.gesture == .wave, stableDuration >= openPalmPrimeDuration {
+            lastOpenPalmAt = now
+        }
+
+        if event.gesture == .closedFist {
+            guard builtInGestureSettings.isEnabled(BuiltInGestureKind.closedFist), stableDuration >= gripStableDuration else {
+                return nil
+            }
+            guard let lastOpenPalmAt, now.timeIntervalSince(lastOpenPalmAt) <= gripTransitionWindow else {
+                return nil
+            }
+            copiedFistStartedAt = stableSince
+            self.lastOpenPalmAt = nil
+            cooldownUntil = now.addingTimeInterval(0.20)
+            return (.copyClipboard, "gripClosedFromPalm", stableDuration)
+        }
+
+        guard let copiedFistStartedAt else {
+            return nil
+        }
+
+        if event.gesture == .none, !event.handPresent {
+            self.copiedFistStartedAt = nil
+            return nil
+        }
+
+        guard event.gesture == .wave || (event.gesture == .none && event.handPresent) else {
+            if event.gesture != .closedFist {
+                self.copiedFistStartedAt = nil
+            }
+            return nil
+        }
+
+        let gripHoldDuration = now.timeIntervalSince(copiedFistStartedAt)
+        guard gripHoldDuration <= maximumGripHoldDuration else {
+            self.copiedFistStartedAt = nil
+            return nil
+        }
+        guard builtInGestureSettings.isEnabled(BuiltInGestureKind.closedFist), stableDuration >= releaseStableDuration else {
+            return nil
+        }
+
+        self.copiedFistStartedAt = nil
+        lastOpenPalmAt = event.gesture == .wave ? now : nil
+        cooldownUntil = now.addingTimeInterval(0.80)
+        return (.pasteClipboard, "fistRelease", stableDuration)
+    }
+
     private mutating func isAudioSilent(
         at now: Date,
         levelDBFS: Double,
@@ -209,6 +284,7 @@ struct GestureStateMachine {
         builtInGestureSettings: BuiltInGestureSettings = BuiltInGestureSettings(),
         mouthOpenAction: ActionMapping = .none,
         mouthOpenConfidenceThreshold: Double = 0.80,
+        mouthOpenStableDuration: TimeInterval = 0.30,
         closeMouthAutoStopEnabled: Bool = false,
         closeMouthAutoStopDelay: TimeInterval = 3.0,
         audioSilenceStopEnabled: Bool = false,
@@ -223,6 +299,7 @@ struct GestureStateMachine {
             builtInGestureSettings: builtInGestureSettings,
             mouthOpenAction: mouthOpenAction,
             mouthOpenConfidenceThreshold: mouthOpenConfidenceThreshold,
+            mouthOpenStableDuration: mouthOpenStableDuration,
             closeMouthAutoStopEnabled: closeMouthAutoStopEnabled,
             closeMouthAutoStopDelay: closeMouthAutoStopDelay,
             audioSilenceStopEnabled: audioSilenceStopEnabled,

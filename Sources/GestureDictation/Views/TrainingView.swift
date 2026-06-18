@@ -6,11 +6,19 @@ struct TrainingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("5 组自定义手势")
-                    .font(.title2.bold())
-                Text("摆好手势后点击采集样本。每组建议采集 8-12 次，略微改变角度。")
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("自定义手势")
+                        .font(.title2.bold())
+                    Text("摆好手势后点击采集样本。每组建议采集 8-12 次，略微改变角度。")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    profileStore.addProfile()
+                } label: {
+                    Label("添加新手势", systemImage: "plus.circle")
+                }
             }
 
             ForEach($profileStore.profiles) { $profile in
@@ -59,6 +67,11 @@ private struct ProfileEditorRow: View {
                     profileStore.clearTemplates(for: profile.id)
                 }
                 .disabled(profile.templates.isEmpty)
+                Button(role: .destructive) {
+                    profileStore.deleteProfile(profile.id)
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
             }
         }
         .padding(14)

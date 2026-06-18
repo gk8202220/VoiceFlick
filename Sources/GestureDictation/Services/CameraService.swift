@@ -61,6 +61,17 @@ final class CameraService: NSObject, ObservableObject, @unchecked Sendable {
         }
     }
 
+    @Published var mouthOpenStableDuration: Double {
+        didSet {
+            let clampedDuration = min(max(mouthOpenStableDuration, 0.10), 1.00)
+            if clampedDuration != mouthOpenStableDuration {
+                mouthOpenStableDuration = clampedDuration
+                return
+            }
+            UserDefaults.standard.set(clampedDuration, forKey: "mouthOpenStableDuration")
+        }
+    }
+
     @Published var closeMouthAutoStopEnabled: Bool {
         didSet {
             UserDefaults.standard.set(closeMouthAutoStopEnabled, forKey: "closeMouthAutoStopEnabled")
@@ -112,6 +123,8 @@ final class CameraService: NSObject, ObservableObject, @unchecked Sendable {
         mouthOpenAction = storedAction
         let storedMouthThreshold = UserDefaults.standard.object(forKey: "mouthOpenConfidenceThreshold") as? Double ?? 0.80
         mouthOpenConfidenceThreshold = min(max(storedMouthThreshold, 0.45), 0.95)
+        let storedMouthStableDuration = UserDefaults.standard.object(forKey: "mouthOpenStableDuration") as? Double ?? 0.30
+        mouthOpenStableDuration = min(max(storedMouthStableDuration, 0.10), 1.00)
         closeMouthAutoStopEnabled = UserDefaults.standard.object(forKey: "closeMouthAutoStopEnabled") as? Bool ?? true
         let storedDelay = UserDefaults.standard.object(forKey: "closeMouthAutoStopDelay") as? Double ?? 3.0
         closeMouthAutoStopDelay = min(max(storedDelay, 1.0), 10.0)
@@ -322,6 +335,7 @@ final class CameraService: NSObject, ObservableObject, @unchecked Sendable {
                     builtInGestureSettings: self.builtInGestureSettings,
                     mouthOpenAction: self.mouthOpenAction,
                     mouthOpenConfidenceThreshold: self.mouthOpenConfidenceThreshold,
+                    mouthOpenStableDuration: self.mouthOpenStableDuration,
                     closeMouthAutoStopEnabled: self.closeMouthAutoStopEnabled,
                     closeMouthAutoStopDelay: self.closeMouthAutoStopDelay,
                     audioSilenceStopEnabled: self.audioSilenceStopEnabled && self.audioLevelService.isMonitoring,
@@ -345,7 +359,7 @@ final class CameraService: NSObject, ObservableObject, @unchecked Sendable {
             audioLevelService.startMonitoringIfAllowed()
         case .stopDictation:
             audioLevelService.stopMonitoring()
-        case .pressReturn, .clearInput, .none:
+        case .pressReturn, .clearInput, .copyClipboard, .pasteClipboard, .none:
             break
         }
     }
@@ -376,6 +390,12 @@ final class CameraService: NSObject, ObservableObject, @unchecked Sendable {
         }
         if reason.hasPrefix("custom profile=") {
             return reason.replacingOccurrences(of: "custom profile=", with: "自定义: ")
+        }
+        if reason == "gripClosedFromPalm" {
+            return "握拳复制"
+        }
+        if reason == "fistRelease" {
+            return "松开粘贴"
         }
         return event.gesture.displayName
     }

@@ -33,6 +33,11 @@ struct ContentView: View {
                 Button(cameraService.isRunning ? "暂停摄像头" : "启动摄像头") {
                     cameraService.toggleRunning()
                 }
+                Button {
+                    profileStore.addProfile()
+                } label: {
+                    Label("添加自定义手势", systemImage: "plus.circle")
+                }
                 Picker("功耗模式", selection: $cameraService.powerMode) {
                     ForEach(PowerMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
@@ -40,16 +45,18 @@ struct ContentView: View {
                 }
             }
 
-            Section("训练槽位") {
-                ForEach(profileStore.profiles) { profile in
-                    HStack {
-                        Image(systemName: profile.isTrained ? "checkmark.seal.fill" : "circle.dashed")
-                            .foregroundStyle(profile.isTrained ? .green : .secondary)
-                        VStack(alignment: .leading) {
-                            Text(profile.name)
-                            Text("\(profile.templates.count) 个样本 · \(profile.action.displayName)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+            if !profileStore.profiles.isEmpty {
+                Section("自定义手势") {
+                    ForEach(profileStore.profiles) { profile in
+                        HStack {
+                            Image(systemName: profile.isTrained ? "checkmark.seal.fill" : "circle.dashed")
+                                .foregroundStyle(profile.isTrained ? .green : .secondary)
+                            VStack(alignment: .leading) {
+                                Text(profile.name)
+                                Text("\(profile.templates.count) 个样本 · \(profile.action.displayName)")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
@@ -67,9 +74,11 @@ struct ContentView: View {
                 builtInGesturesCard
                 actionLogCard
                 permissionsCard
-                TrainingView()
-                    .environmentObject(profileStore)
-                    .environmentObject(cameraService)
+                if !profileStore.profiles.isEmpty {
+                    TrainingView()
+                        .environmentObject(profileStore)
+                        .environmentObject(cameraService)
+                }
             }
             .padding(24)
         }
@@ -82,7 +91,7 @@ struct ContentView: View {
                 VStack(alignment: .leading) {
                     Text("实时手势识别")
                         .font(.title2.bold())
-                    Text("握拳或指向开始输入，放下结束，Victory 或点赞确认，挥手清空。")
+                    Text("张开手掌后握紧复制，松开粘贴；指向开始输入，放下结束，Victory 或点赞确认，挥手清空。")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -349,8 +358,8 @@ private struct BuiltInGestureInfo: Identifiable {
         BuiltInGestureInfo(
             kind: .closedFist,
             title: "握拳",
-            gestureDescription: "四指弯曲，稳定出现约 300ms",
-            action: "开始语音输入",
+            gestureDescription: "先张开手掌，再在约 1 秒内握紧",
+            action: "复制",
             symbol: "hand.fist.fill",
             tint: .blue
         ),
@@ -389,8 +398,8 @@ private struct BuiltInGestureInfo: Identifiable {
         BuiltInGestureInfo(
             kind: .wave,
             title: "挥手",
-            gestureDescription: "张开手掌并横向摆动",
-            action: "清除输入框",
+            gestureDescription: "松开握拳后粘贴；张开手掌横向摆动可清空",
+            action: "粘贴 / 清除输入框",
             symbol: "hands.sparkles.fill",
             tint: .red
         ),

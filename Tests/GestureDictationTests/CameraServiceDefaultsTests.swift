@@ -5,6 +5,7 @@ final class CameraServiceDefaultsTests: XCTestCase {
     func testMouthOpenDefaultsWhenUnset() {
         let previousAction = UserDefaults.standard.string(forKey: "mouthOpenAction")
         let previousMouthThreshold = UserDefaults.standard.object(forKey: "mouthOpenConfidenceThreshold")
+        let previousMouthStableDuration = UserDefaults.standard.object(forKey: "mouthOpenStableDuration")
         let previousAutoStop = UserDefaults.standard.object(forKey: "closeMouthAutoStopEnabled")
         let previousDelay = UserDefaults.standard.object(forKey: "closeMouthAutoStopDelay")
         let previousActionLogging = UserDefaults.standard.object(forKey: "actionLoggingEnabled")
@@ -26,6 +27,11 @@ final class CameraServiceDefaultsTests: XCTestCase {
                 UserDefaults.standard.set(previousMouthThreshold, forKey: "mouthOpenConfidenceThreshold")
             } else {
                 UserDefaults.standard.removeObject(forKey: "mouthOpenConfidenceThreshold")
+            }
+            if let previousMouthStableDuration {
+                UserDefaults.standard.set(previousMouthStableDuration, forKey: "mouthOpenStableDuration")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "mouthOpenStableDuration")
             }
             if let previousDelay {
                 UserDefaults.standard.set(previousDelay, forKey: "closeMouthAutoStopDelay")
@@ -56,6 +62,7 @@ final class CameraServiceDefaultsTests: XCTestCase {
 
         UserDefaults.standard.removeObject(forKey: "mouthOpenAction")
         UserDefaults.standard.removeObject(forKey: "mouthOpenConfidenceThreshold")
+        UserDefaults.standard.removeObject(forKey: "mouthOpenStableDuration")
         UserDefaults.standard.removeObject(forKey: "closeMouthAutoStopEnabled")
         UserDefaults.standard.removeObject(forKey: "closeMouthAutoStopDelay")
         UserDefaults.standard.removeObject(forKey: "actionLoggingEnabled")
@@ -67,6 +74,7 @@ final class CameraServiceDefaultsTests: XCTestCase {
 
         XCTAssertEqual(service.mouthOpenAction, .startDictation)
         XCTAssertEqual(service.mouthOpenConfidenceThreshold, 0.80)
+        XCTAssertEqual(service.mouthOpenStableDuration, 0.30)
         XCTAssertTrue(service.closeMouthAutoStopEnabled)
         XCTAssertEqual(service.closeMouthAutoStopDelay, 3.0)
         XCTAssertTrue(service.actionLoggingEnabled)

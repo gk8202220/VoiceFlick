@@ -67,6 +67,21 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading) {
+                LabeledContent(
+                    "嘴张开保持时间",
+                    value: String(format: "%.2f 秒", cameraService.mouthOpenStableDuration)
+                )
+                Slider(
+                    value: $cameraService.mouthOpenStableDuration,
+                    in: 0.10 ... 1.00,
+                    step: 0.05
+                )
+                Text("嘴巴连续张开达到这个时长后，才会开始语音输入。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Toggle("闭嘴自动结束输入", isOn: $cameraService.closeMouthAutoStopEnabled)
 
             Stepper(
